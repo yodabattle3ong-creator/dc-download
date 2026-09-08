@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord to Google Drive Transfer Pipeline</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #2f3136; 
+            color: #fff; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+        .container { 
+            background: #36393f; 
+            padding: 40px; 
+            border-radius: 12px; 
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4); 
+            width: 440px; 
+            text-align: center; 
+        }
+        h2 { margin-top: 0; color: #fff; }
+        p { color: #b9bbbe; font-size: 14px; margin-bottom: 25px; line-height: 1.5; }
+        input[type="text"] { 
+            width: 100%; 
+            padding: 12px; 
+            margin: 15px 0; 
+            border-radius: 6px; 
+            border: 1px solid #202225; 
+            background: #40444b; 
+            color: #fff; 
+            box-sizing: border-box; 
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        input[type="text"]:focus {
+            border-color: #5865F2;
+            outline: none;
+        }
+        button { 
+            background: #5865F2; 
+            color: white; 
+            border: none; 
+            padding: 14px 20px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            font-weight: 600;
+            width: 100%; 
+            transition: background-color 0.2s;
+        }
+        button:hover { background: #4752c4; }
+        button:disabled { background: #4f545c; cursor: not-allowed; }
+        .result { 
+            margin-top: 25px; 
+            word-break: break-all; 
+            padding: 15px; 
+            background: #2f3136; 
+            border-radius: 6px; 
+            border-left: 4px solid #5865F2;
+            display: none; 
+            text-align: left;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .result.error { border-left-color: #ed4245; }
+        .result.success { border-left-color: #3ba55d; }
+        a { color: #00aff4; text-decoration: none; font-weight: 600; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>File Transfer pipeline</h2>
+    <p>Paste a Discord CDN link below to transfer it over directly to your connected Google Drive storage instance.</p>
+    <input type="text" id="discordUrl" placeholder="https://cdn.discordapp.com/attachments/...">
+    <button id="transferBtn" onclick="transferFile()">Transfer File</button>
+
+    <div id="resultBox" class="result"></div>
+</div>
+
+<script>
+async function transferFile() {
+    const urlInput = document.getElementById('discordUrl').value.trim();
+    const resultBox = document.getElementById('resultBox');
+    const transferBtn = document.getElementById('transferBtn');
+    
+    if(!urlInput) {
+        alert("Please provide a valid file target link.");
+        return;
+    }
+
+    // Set UI processing state
+    transferBtn.disabled = true;
+    resultBox.className = "result";
+    resultBox.style.display = "block";
+    resultBox.innerHTML = "Processing data streaming pipeline... please wait up to a few minutes for larger files.";
+
+    try {
+        const response = await fetch('/transfer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: urlInput })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            resultBox.classList.add("success");
+            resultBox.innerHTML = `<strong>Pipeline Complete!</strong><br>File Name: <code>${data.filename}</code><br><br><a href="${data.download_url}" target="_blank">📥 Click Here For Your Direct Download Link</a>`;
+        } else {
+            resultBox.classList.add("error");
+            resultBox.innerHTML = `<strong>Transfer Stopped:</strong> ${data.error}`;
+        }
+    } catch (error) {
+        resultBox.classList.add("error");
+        resultBox.innerHTML = `<strong>System Error:</strong> The network connection failed or timed out.`;
+    } finally {
+        transferBtn.disabled = false;
+    }
+}
+</script>
+
+</body>
+</html>
