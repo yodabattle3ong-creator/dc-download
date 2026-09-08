@@ -1,7 +1,7 @@
 import os
+import json
 import requests
 import io
-import json
 from flask import Flask, render_template, request, jsonify
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -10,36 +10,37 @@ from googleapiclient.http import MediaIoBaseUpload
 
 app = Flask(__name__)
 
-# Scopes required to upload files and update sharing permissions
-SCOPES = ['https://www.googleapis.com/auth/drive.file']
+SCOPES = ['https://googleapis.com']
 
 def get_drive_service():
-    """Authenticates using environment variables or local token.json."""
+    """Authenticates using environment variables securely for cloud platforms."""
     creds = None
     
-    # 1. Look for existing session token
-    if os.path.exists('token.json'):
+    # 1. First check for a persistent token string saved in env variables
+    env_token = os.environ.get('GOOGLE_TOKEN_JSON')
+    if env_token:
+        token_info = json.loads(env_token)
+        creds = Credentials.from_authorized_user_info(token_info, SCOPES)
+        
+    # 2. Fallback to reading a local token.json if present
+    elif os.path.exists('token.json'):
         creds = Credentials.from_authorized_user_file('token.json', SCOPES)
     
-    # 2. If no token, authenticate via environment variables or local credentials file
+    # 3. If no active token exists, generate credentials from our minified JSON string
     if not creds or not creds.valid:
-        google_creds_json = os.environ.get("GOOGLE_CREDENTIALS_JSON")
-        
-        if google_creds_json:
-            # For cloud hosting deployment (Render/Railway)
-            creds_data = json.loads(google_creds_json)
-            flow = InstalledAppFlow.from_client_config(creds_data, SCOPES)
-        elif os.path.exists('credentials.json'):
-            # For local testing configuration
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-        else:
-            raise Exception("Missing authentication credentials. Provide GOOGLE_CREDENTIALS_JSON env var or a credentials.json file.")
+        env_creds = os.environ.get('GOOGLE_CREDENTIALS_JSON')
+        if not env_creds:
+            raise ValueError("Missing GOOGLE_CREDENTIALS_JSON environment variable.")
             
-        flow.redirect_uri = os.environ.get("REDIRECT_URI", "urn:ietf:wg:oauth:2.0:oob")
-        creds = flow.run_local_server(port=0) if not google_creds_json else flow.run_console()
+        creds_info = json.loads(env_creds)
+        flow = InstalledAppFlow.from_client_config(creds_info, SCOPES)
         
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
+        # Enforce out-of-band / local system loopback explicitly to prevent parameter dropouts
+        flow.redirect_uri = 'http://localhost'
+        
+        # NOTE: If executing directly on Render, you should generate token.json locally 
+        # on your machine first, then paste its contents into a GOOGLE_TOKEN_JSON env variable.
+        creds = flow.run_local_server(port=0, open_browser=False)
             
     return build('drive', 'v3', credentials=creds)
 
@@ -56,22 +57,17 @@ def transfer_file():
         return jsonify({'error': 'No URL provided'}), 400
 
     try:
-        # 1. Download file from Discord link into memory streaming chunk blocks
         response = requests.get(discord_url, stream=True)
         if response.status_code != 200:
-            return jsonify({'error': f'Failed to fetch file from Discord link (Status: {response.status_code})'}), 400
+            return jsonify({'error': 'Failed to fetch file from Discord link'}), 400
             
-        # Extract filename cleanly from the Discord CDN path URL
         filename = discord_url.split('/')[-1].split('?')[0]
         if not filename:
             filename = "downloaded_file"
 
         file_stream = io.BytesIO(response.content)
-
-        # 2. Connect to the authenticated Google Drive instance
         service = get_drive_service()
 
-        # 3. Stream upload payload data metadata structural configurations
         file_metadata = {'name': filename}
         media = MediaIoBaseUpload(file_stream, mimetype=response.headers.get('Content-Type'), resumable=True)
         
@@ -83,18 +79,10 @@ def transfer_file():
         
         file_id = uploaded_file.get('id')
 
-        # 4. Modify Access Management Control settings to "Anyone with the link can view"
-        user_permission = {
-            'type': 'anyone',
-            'role': 'reader',
-        }
-        service.permissions().create(
-            fileId=file_id,
-            body=user_permission
-        ).execute()
+        user_permission = {'type': 'anyone', 'role': 'reader'}
+        service.permissions().create(fileId=file_id, body=user_permission).execute()
 
-        # 5. Build accessible direct export extraction endpoint link mapping
-        direct_download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        direct_download_url = f"https://google.com{file_id}"
 
         return jsonify({
             'success': True,
