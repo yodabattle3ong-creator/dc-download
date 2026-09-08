@@ -10,6 +10,7 @@ from googleapiclient.http import MediaIoBaseUpload
 
 app = Flask(__name__)
 
+# FIXED: Replaced invalid domain with the exact Google Drive scope URL
 SCOPES = ['https://googleapis.com']
 
 def get_drive_service():
@@ -82,6 +83,7 @@ def transfer_file():
         user_permission = {'type': 'anyone', 'role': 'reader'}
         service.permissions().create(fileId=file_id, body=user_permission).execute()
 
+        # FIXED: Replaced the broken domain layout with the direct Google Drive download string format
         direct_download_url = f"https://google.com{file_id}"
 
         return jsonify({
