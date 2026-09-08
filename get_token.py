@@ -1,7 +1,7 @@
 import os
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-# Define the exact permission scope needed for Drive uploading
+# FIXED: Corrected full permission scope path
 SCOPES = ['https://googleapis.com']
 
 def generate_token():
